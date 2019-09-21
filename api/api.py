@@ -33,7 +33,6 @@ class Api:
 	def search_db(
 			cls,
 			search_term: str, search_type: Optional[SearchType] = None,
-
 			result_limit: Optional[int] = None, retries: int = 2, wait_seconds_before_retry: int = 10
 	) -> List[Dict[str, Any]]:
 		full_url: str = urljoin(cls._BASE_API_URL, cls._ENDPOINT_SEARCH_DB)
@@ -61,11 +60,13 @@ class Api:
 			except ThrottledResponseException as e:
 				print("Attempt {} out of {} failed".format(total_attempts + 1, retries + 1), file=sys.stderr)
 				if total_attempts < retries:
-					print("Waiting {} seconds before next attempt...".format(wait_seconds_before_retry))
-					sleep(wait_seconds_before_retry)
+					wait_time: int = wait_seconds_before_retry * (total_attempts + 1)
+					print("Waiting {} seconds before next attempt...".format(wait_time))
+					sleep(wait_time)
+
+					print("Retrying, attempt {}...".format(total_attempts + 1))
 
 					total_attempts += 1
-					print("Retrying, attempt {}...".format(total_attempts + 1))
 				else:
 					print("Out of attempts, aborting", file=sys.stderr)
 					raise e
@@ -82,3 +83,10 @@ class Api:
 			lambda e: Cleaner.normalize_string(e.get(field_name, '')) == normalized_expected,
 			results
 		))
+
+	@classmethod
+	def search_db_label(cls, label: str) -> List[Dict[str, Any]]:
+		label = Cleaner.label_cleaner(label)
+
+		unfiltered_results: List[Dict[str, Any]] = cls.search_db(label, SearchType.LABEL, result_limit=50)
+		return cls.filter_results_by(Cleaner.normalize_string(label), unfiltered_results, EntryField.TITLE)
